@@ -13,23 +13,14 @@ logger.setLevel(logging.INFO)
 # Initialize clients
 dynamodb = client('dynamodb')
 
+MAX_RESERVED_DIALOGS = 10
 
 def handler(event, context):
-    table_name = os.environ['TABLE_NAME']
+    # retrieve name of dialogues table
+    table_name = os.environ['DIALOG_TABLE_NAME']
 
     # Initialize Gemini API client
     gemini_client = genai.Client(api_key=os.environ['GEMINI_KEY'])
-
-    # Scan DynamoDB table
-    try:
-        response = dynamodb.scan(TableName=table_name)
-        connections = response.get('Items', [])
-    except ClientError as e:
-        logger.error(f"Error scanning DynamoDB: {e}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps('Failed to scan DynamoDB')
-        }
 
     # Get message from the event body
     try:
@@ -41,8 +32,6 @@ def handler(event, context):
             'body': json.dumps('Invalid message format')
         }
 
-    logger.info(f"connections: {connections}, message: {message}")
-
     # Get API Gateway management API endpoint
     domain_name = event['requestContext']['domainName']
     stage = event['requestContext']['stage']
@@ -50,18 +39,50 @@ def handler(event, context):
 
     callbackAPI = client('apigatewaymanagementapi', endpoint_url=endpoint)
 
-    # Send message to the sender (Gemini integration part)
+    # Get the connection ID from the request
     connection_id = event['requestContext']['connectionId']
 
+    logger.info(f"connection: {connection_id}, message: {message}")
+
+    # Retrieve the chat history from DynamoDB
+    try:
+        history_response = dynamodb.get_item(
+            TableName=table_name,
+            Key={'connectionId': {'S': connection_id}}
+        )
+        chat_history = history_response.get('Item', {}).get('chatHistory', {}).get('L', [])
+
+    except ClientError as e:
+        logger.error(f"Error retrieving chat history for connection {connection_id}: {e}")
+        chat_history = []
+
+    # Prepare the history to send along with the new message
+    if chat_history:
+        chat_history_text = [item['S'] for item in chat_history]
+    else:
+        chat_history_text = []
+
+    # Add the new message to the conversation history
+    chat_history_text.append(message)
+
+    # Ensure the history does not exceed x rounds
+    if len(chat_history_text) > MAX_RESERVED_DIALOGS:
+        chat_history_text = chat_history_text[-MAX_RESERVED_DIALOGS:]
+
+    # Send the chat history and new message to Gemini API
     try:
         # Send the message to Gemini API and get the response
         response = gemini_client.models.generate_content_stream(
             model="gemini-2.0-flash",
-            contents=[message]
+            contents=chat_history_text
         )
+
+        # Used to store the entire answer
+        answer = ""
 
         # Forward the Gemini response to the WebSocket client
         for chunk in response:
+            answer += chunk.text
             callbackAPI.post_to_connection(
                 ConnectionId=connection_id,
                 Data=json.dumps({"event": "message", "data": chunk.text})
@@ -70,6 +91,21 @@ def handler(event, context):
         callbackAPI.post_to_connection(
             ConnectionId=connection_id,
             Data=json.dumps({"event": "completed"})
+        )
+
+        chat_history_text.append(answer)
+
+        # Ensure the history does not exceed x rounds
+        if len(chat_history_text) > MAX_RESERVED_DIALOGS:
+            chat_history_text = chat_history_text[-MAX_RESERVED_DIALOGS:]
+
+        # Save the chat history back to DynamoDB
+        dynamodb.put_item(
+            TableName=table_name,
+            Item={
+                'connectionId': {'S': connection_id},
+                'chatHistory': {'L': [{'S': text} for text in chat_history_text]}
+            }
         )
 
     except ClientError as e:
