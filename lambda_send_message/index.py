@@ -64,8 +64,13 @@ def handler(event, context):
         for chunk in response:
             callbackAPI.post_to_connection(
                 ConnectionId=connection_id,
-                Data=json.dumps(chunk.text)
+                Data=json.dumps({"event": "message", "data": chunk.text})
             )
+
+        callbackAPI.post_to_connection(
+            ConnectionId=connection_id,
+            Data=json.dumps({"event": "completed"})
+        )
 
     except ClientError as e:
         logger.error(f"Error sending message to connection {connection_id}: {e}")
