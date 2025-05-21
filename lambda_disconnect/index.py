@@ -4,17 +4,21 @@ from botocore.exceptions import ClientError
 
 def handler(event, context):
     # Initialize DynamoDB client and document client
-    dynamodb_client = boto3.client('dynamodb')
-    doc_client = boto3.resource('dynamodb').Table(os.environ['TABLE_NAME'])
+    conn_client = boto3.resource('dynamodb').Table(os.environ['CONNECTION_TABLE_NAME'])
+    dialog_client = boto3.resource('dynamodb').Table(os.environ['DIALOG_TABLE_NAME'])
 
     # Prepare the key to delete from DynamoDB
-    key = {
+    conn_key = {
+        'connectionId': event['requestContext']['connectionId']
+    }
+    dialog_key = {
         'connectionId': event['requestContext']['connectionId']
     }
 
     # Try deleting the item from DynamoDB
     try:
-        doc_client.delete_item(Key=key)
+        conn_client.delete_item(Key=conn_key)
+        dialog_client.delete_item(Key=dialog_key)
     except ClientError as err:
         print(f"Error deleting item from DynamoDB: {err}")
         return {
