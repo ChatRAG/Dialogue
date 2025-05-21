@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import prompt_engineering
 from boto3 import client
 from botocore.exceptions import ClientError
 from botocore.config import Config
@@ -24,7 +25,7 @@ def handler(event, context):
 
     # Get message from the event body
     try:
-        message = json.loads(event['body']).get('message')
+        question = json.loads(event['body']).get('message')
     except (KeyError, json.JSONDecodeError) as e:
         logger.error(f"Error parsing message: {e}")
         return {
@@ -42,7 +43,7 @@ def handler(event, context):
     # Get the connection ID from the request
     connection_id = event['requestContext']['connectionId']
 
-    logger.info(f"connection: {connection_id}, message: {message}")
+    logger.info(f"connection: {connection_id}, question: {question}")
 
     # Retrieve the chat history from DynamoDB
     try:
@@ -56,25 +57,24 @@ def handler(event, context):
         logger.error(f"Error retrieving chat history for connection {connection_id}: {e}")
         chat_history = []
 
-    # Prepare the history to send along with the new message
+    # Prepare the history to send along with the new question
     if chat_history:
         chat_history_text = [item['S'] for item in chat_history]
     else:
         chat_history_text = []
 
-    # Add the new message to the conversation history
-    chat_history_text.append(message)
-
     # Ensure the history does not exceed x rounds
     if len(chat_history_text) > MAX_RESERVED_DIALOGS:
         chat_history_text = chat_history_text[-MAX_RESERVED_DIALOGS:]
 
-    # Send the chat history and new message to Gemini API
+    # Send the chat history and new question to Gemini API
     try:
+        prompt = prompt_engineering.gen_prompt_from_chat_history(chat_history_text, question)
+
         # Send the message to Gemini API and get the response
         response = gemini_client.models.generate_content_stream(
             model="gemini-2.0-flash",
-            contents=chat_history_text
+            contents=[prompt]
         )
 
         # Used to store the entire answer
@@ -93,6 +93,8 @@ def handler(event, context):
             Data=json.dumps({"event": "completed"})
         )
 
+        # Add the new question and answer to the conversation history
+        chat_history_text.append(question)
         chat_history_text.append(answer)
 
         # Ensure the history does not exceed x rounds
