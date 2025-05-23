@@ -2,19 +2,15 @@
 
 # Set variables
 LAMBDA_FUNCTION_NAME="ChatRAG-DisconnectHandlerCB7ED6F7-5X3uUdnLM11M"
-PYTHON_FILE="index.py"
 ZIP_FILE="lambda-deployment.zip"
 
 # Step 1: Prepare your Python code
 echo "Preparing Python code..."
-if [ ! -f "$PYTHON_FILE" ]; then
-  echo "Error: $PYTHON_FILE does not exist. Please ensure your Lambda function code is ready."
-  exit 1
-fi
+ls *.py
 
 # Step 2: Zip your Python code
 echo "Zipping Python code..."
-zip -r "$ZIP_FILE" "$PYTHON_FILE"
+zip -r "$ZIP_FILE" *.py
 
 # Step 3: Deploy to AWS Lambda using AWS CLI
 echo "Deploying to AWS Lambda..."

@@ -2,7 +2,6 @@
 
 # Set variables
 LAMBDA_FUNCTION_NAME="ChatRAG-SendMessageHandlerDCEABF13-OZBFzP3EbBEQ"
-PYTHON_FILE="index.py"
 ZIP_FILE="lambda-deployment.zip"
 
 # Step 1: Prepare your Python code
