@@ -1,2 +1,2 @@
 # Dialogue
-Dialogue layer, implemented with Python, deployed as AWS Lambda.
+Manage user dialogues and generate responses.
