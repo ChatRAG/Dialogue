@@ -1,10 +1,7 @@
-import os
 from typing import List, Dict, Any
-from google import genai
+import tiktoken
 
 MAX_TOKENS = 30000
-
-client = genai.Client(api_key=os.environ['GEMINI_KEY'])
 
 requirement_prompt = '''
 ### Requirements
@@ -20,7 +17,8 @@ Based on the provided document information and conversation history, answer user
 
 
 def count_text_tokens(text: str) -> int:
-    return client.models.count_tokens(model="gemini-2.0-flash", contents=text).total_tokens
+    enc = tiktoken.encoding_for_model("gpt-3.5-turbo")
+    return len(enc.encode(text))
 
 
 def truncate_chunks_to_token_limit(recalled_chunks: Dict[str, List[Dict[str, Any]]], limit: int) -> List[str]:
@@ -79,11 +77,11 @@ def gen_prompt(history: List[str], recalled_chunks: Dict[str, List[Dict[str, Any
 
     prompt_parts = []
 
+    prompt_parts.append(requirement_prompt)
+    prompt_parts.append("### User Question:\n" + truncated_question)
     if truncated_rag:
         prompt_parts.append("### Documents:\n" + "\n\n".join(truncated_rag))
     if truncated_history:
         prompt_parts.append("### Conversation History:\n" + "\n".join(truncated_history))
-    prompt_parts.append(requirement_prompt)
-    prompt_parts.append("### User Question:\n" + truncated_question)
 
     return "\n\n".join(prompt_parts)

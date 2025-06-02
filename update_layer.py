@@ -25,6 +25,7 @@ def install_dependencies():
         "pip3", "install",
         "pydantic==2.11.5",
         "pydantic-core==2.33.2",
+        "tiktoken",
         "--platform", "manylinux2014_x86_64",
         "--only-binary=:all:",
         "-t", str(TEMP_LAYER_DIR)
