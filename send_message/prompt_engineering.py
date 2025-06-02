@@ -5,7 +5,6 @@ from google import genai
 MAX_TOKENS = 30000
 
 client = genai.Client(api_key=os.environ['GEMINI_KEY'])
-client = genai.Client(api_key='AIzaSyAV-GaZr-QCpT0jY_t7wwg3OtY3gQWmKu0')
 
 requirement_prompt = '''
 ### Requirements
