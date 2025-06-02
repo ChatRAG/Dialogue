@@ -1,7 +1,10 @@
 import json
 import logging
 import os
+import time
+
 import prompt_engineering
+import recall
 from boto3 import client
 from botocore.exceptions import ClientError
 from botocore.config import Config
@@ -67,9 +70,16 @@ def handler(event, context):
     if len(chat_history_text) > MAX_RESERVED_DIALOGS:
         chat_history_text = chat_history_text[-MAX_RESERVED_DIALOGS:]
 
+    recalled_chunks = recall.recall_chunks(question)
+    for key, chunks in recalled_chunks.items():
+        for chunk in chunks:
+            chunk_id = chunk['chunk_id']
+            logger.info(f"recalled chunk: key={key}, chunk_id={chunk_id}")
+
     # Send the chat history and new question to Gemini API
     try:
-        prompt = prompt_engineering.gen_prompt_from_chat_history(chat_history_text, question)
+        prompt = prompt_engineering.gen_prompt(chat_history_text, recalled_chunks, question)
+        logger.info(f"prompt={prompt}")
 
         # Send the message to Gemini API and get the response
         response = gemini_client.models.generate_content_stream(
